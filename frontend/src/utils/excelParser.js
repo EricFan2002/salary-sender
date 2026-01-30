@@ -279,20 +279,15 @@ function extractMetadata(employee, type, sheetName) {
 }
 
 function detectCompanyNameFromSheet(sheetName = '') {
-  if (sheetName.includes('分社')) {
-    return {
-      zh: '中国船级社新加坡分社',
-      en: 'China Classification Society, Singapore Branch'
-    };
-  }
-
-  if (sheetName.includes('国际公司') && sheetName.includes('代发')) {
+  // Check for International Company (Proxy/Pay on behalf) FIRST
+  if (sheetName.includes('国际公司') && (sheetName.includes('代发') || sheetName.includes('分社代发'))) {
     return {
       zh: '中国船级社国际有限公司（暂由新加坡分社代发）',
-      en: 'China Classification Society International Pte Ltd (on behalf of China Classification Society, Singapore Branch)'
+      en: 'China Classification Society International Pte Ltd (Paid by China Classification Society, Singapore Branch)'
     };
   }
 
+  // Then check for International Company
   if (sheetName.includes('国际公司')) {
     return {
       zh: '中国船级社国际有限公司',
@@ -300,6 +295,15 @@ function detectCompanyNameFromSheet(sheetName = '') {
     };
   }
 
+  // Lastly check for Branch
+  if (sheetName.includes('分社')) {
+    return {
+      zh: '中国船级社新加坡分社',
+      en: 'China Classification Society, Singapore Branch'
+    };
+  }
+
+  // Default
   return {
     zh: '中国船级社国际有限公司',
     en: 'China Classification Society International Pte Ltd'

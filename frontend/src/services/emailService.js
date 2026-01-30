@@ -194,217 +194,58 @@ export async function sendBulkSalarySlips(smtp, employees, options = {}, onProgr
   return results;
 }
 
+import { normalizeSalaryData } from '../utils/salaryDataNormalizer';
+
 /**
- * Generate HTML email content (router function)
+ * Generate HTML email content (unified)
  */
 function generateEmailHTML(employee, month, companyName, settings = {}, paymentDate = '', payPeriod = '') {
-  const employeeType = employee.type || 'local';
+  // Normalize data using the shared utility
+  const { meta, groups } = normalizeSalaryData(employee, month, {
+    payPeriod,
+    paymentDate,
+    companyName
+  });
 
-  if (employeeType === 'expatriate') {
-    return generateExpatriateEmailHTML(employee, month, companyName, settings, paymentDate, payPeriod);
-  } else {
-    return generateLocalEmailHTML(employee, month, companyName, settings, paymentDate, payPeriod);
-  }
-}
+  const displayCompanyName = [meta.employer.zh, meta.employer.en].filter(Boolean).join(' / ');
 
-/**
- * Generate HTML email content for LOCAL employees
- */
-function generateLocalEmailHTML(employee, month, companyName, settings = {}, paymentDate = '', payPeriod = '') {
-  const currency = employee.metadata?.currency || 'RMB';
-  const displayCompanyName = employee.metadata?.companyName || companyName;
-  const displayCompanyNameEn = employee.metadata?.companyNameEn || '';
-  const LOCAL_LABEL_TRANSLATIONS = {
-    '项目': 'Item',
-    '固定工资类': 'Fixed Salary',
-    '浮动工资类': 'Bonuses & Others',
-    '个人CPF扣除': 'CPF Deductions',
-    '应发工资合计': 'Gross Salary',
-    '扣发合计': 'Total Deductions',
-    '实发工资': 'Net Salary',
-    '其他扣发': 'Other Deductions',
-    '合同工资': 'Basic Salary',
-    '补贴': 'Subsidy',
-    '驾车补贴': 'Driving Allowance',
-    '外勤补贴': 'Field Work Allowance',
-    '加班费': 'Overtime',
-    '年终奖': 'Year-end Bonus',
-    '假期工资': 'Holiday Pay',
-    '奖励金': 'Reward',
-    '浮动其他': 'Variable Others',
-    '小计': 'Subtotal',
-    '备注': 'Remarks'
-  };
-
-  const formatGroupLabel = (label) => {
-    if (!label) return label;
-    if (label.includes('/')) return label;
-    const labelEn = LOCAL_LABEL_TRANSLATIONS[label];
-    return labelEn ? `${label} / ${labelEn}` : label;
-  };
-
-  const formatItemLabel = (label) => {
-    if (!label || label.includes('/')) return label;
-    const parts = label.split(' - ');
-    if (parts.length > 1) {
-      const [, item] = parts;
-      const itemEn = LOCAL_LABEL_TRANSLATIONS[item] || item;
-      if (item.includes('加班') && employee.overtimeHours) {
-        const hours = parseFloat(employee.overtimeHours) || employee.overtimeHours;
-        return `${item}（${hours}小时/${hours} hrs） / ${itemEn} (${hours} hrs)`;
-      }
-      return `${item} / ${itemEn}`;
-    }
-    const labelEn = LOCAL_LABEL_TRANSLATIONS[label];
-    if (label.includes('加班') && employee.overtimeHours) {
-      const hours = parseFloat(employee.overtimeHours) || employee.overtimeHours;
-      return labelEn ? `${label}（${hours}小时/${hours} hrs） / ${labelEn} (${hours} hrs)` : `${label}（${hours}小时/${hours} hrs）`;
-    }
-    return labelEn ? `${label} / ${labelEn}` : label;
-  };
-
-  const breakdownRows = Object.entries(employee.breakdown)
-    .filter(([key, value]) => !key.includes('加班小时') && key !== '序号' && key !== '邮箱' && key !== '备注' && shouldDisplayValue(value))
-    .map(([key, value]) => `
+  // Build rows HTML
+  const rowsHTML = groups.map(group => {
+    const itemsHTML = group.items.map(item => `
       <tr>
-        <td style="padding: 8px; border: 1px solid #ddd;">${formatItemLabel(key)}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatCurrency(value, currency)}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; ${item.isBold ? 'font-weight: 700; background-color: #f8fafc;' : ''}">
+          ${item.label}
+        </td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; ${item.isBold ? 'font-weight: 700; background-color: #f8fafc;' : ''}">
+          ${item.formattedValue} ${item.unit}
+        </td>
       </tr>
     `).join('');
 
-  // Use custom email body from settings if available
-  const defaultBody = `尊敬的 <strong>${employee.name}</strong>，<br><br>您好！请查看您的工资详情。<br><br>如有任何疑问，请联系Yunzhi。<br><br>Dear <strong>${employee.name}</strong>,<br><br>Please find your salary details below.<br><br>If you have any questions, please contact Yunzhi.`;
+    // If generic "Items" group, just return items, else show group header
+    if (group.title && group.title.includes('Item / Item') || group.title === '项目') {
+      return itemsHTML;
+    }
 
-  const emailBody = (settings.emailBody || defaultBody)
-    .replace(/{name}/g, employee.name)
-    .replace(/{month}/g, month)
-    .replace(/{companyName}/g, displayCompanyName)
-    .replace(/{email}/g, employee.email);
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #475569; color: white; padding: 20px; text-align: center; }
-        .content { background-color: #f9f9f9; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; }
-        th { background-color: #475569; color: white; padding: 10px; text-align: left; }
-        td { padding: 8px; border: 1px solid #ddd; }
-        .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h3>工资条 Salary Slip - ${month}</h3>
-        </div>
-        <div class="content">
-          ${(displayCompanyName || displayCompanyNameEn) ? `
-            <p><strong>雇主名称 / Name of Employer:</strong> ${[displayCompanyName, displayCompanyNameEn].filter(Boolean).join(' / ')}</p>
-          ` : ''}
-          ${payPeriod ? `<p><strong>Pay Period:</strong> ${payPeriod}</p>` : ''}
-          ${paymentDate ? `<p><strong>Date of Payment:</strong> ${paymentDate}</p>` : ''}
-          <p>${emailBody}</p>
-
-          <table>
-            <thead>
-              <tr>
-                <th>项目 Item</th>
-                <th style="text-align: right;">金额 Amount (${currency})</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${breakdownRows}
-            </tbody>
-          </table>
-
-          ${employee.remarks ? `<p style="background-color: #fef3c7; padding: 10px; border-left: 4px solid #f59e0b;"><strong>备注 Remarks:</strong> ${employee.remarks}</p>` : ''}
-        </div>
-        <div class="footer">
-          <p>${settings.pdfFooter || '此邮件由系统自动发送，请勿回复。'}<br>${settings.pdfFooter ? '' : 'This email is auto-generated, please do not reply.'}</p>
-          <p>如果有问题请联系Yunzhi</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
-/**
- * Generate HTML email content for EXPATRIATE employees
- */
-function generateExpatriateEmailHTML(employee, month, companyName, settings = {}, paymentDate = '', payPeriod = '') {
-  const metadata = employee.metadata || {};
-  const displayCompanyName = metadata.companyName || metadata.employer || companyName;
-  const displayCompanyNameEn = metadata.companyNameEn || '';
-
-  const detectCurrencyFromLabel = (label) => {
-    if (label.includes('(RMB)')) return 'RMB';
-    if (label.includes('(SGD)')) return 'SGD';
-    return 'SGD';
-  };
-
-  const sanitizeLabel = (label) => label.replace(/\s*\((RMB|SGD)\)\s*/g, '').trim();
-
-  const groupedBreakdown = {};
-  Object.entries(employee.breakdown || {}).forEach(([key, value]) => {
-    if (!shouldDisplayValue(value)) return;
-    if (key === '序号' || key === '邮箱' || key === '备注' || key.includes('加班小时') || key === 'EP符合性') return;
-    const [group, item] = key.split(' - ');
-    const groupName = item ? group : '项目';
-    const itemName = item || key;
-    if (!groupedBreakdown[groupName]) groupedBreakdown[groupName] = {};
-    groupedBreakdown[groupName][itemName] = value;
-  });
-
-  const emphasizeRow = (label) => (
-    label.includes('小计') ||
-    label.includes('合计') ||
-    label.includes('应发工资') ||
-    label.includes('实发工资') ||
-    label.includes('扣发合计')
-  );
-
-  const groupRows = Object.entries(groupedBreakdown)
-    .map(([groupName, items]) => {
-      const itemsHTML = Object.entries(items).map(([label, value]) => {
-        const isEmphasis = emphasizeRow(label);
-        const unit = detectCurrencyFromLabel(label);
-        const cleanLabel = sanitizeLabel(label);
-        return `
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd; ${isEmphasis ? 'font-weight: 700; background-color: #f8fafc;' : ''}">${cleanLabel}</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; ${isEmphasis ? 'font-weight: 700; background-color: #f8fafc;' : ''}">${formatCurrency(value, unit)} ${unit}</td>
-          </tr>
-        `;
-      }).join('');
-
-      if (!itemsHTML) return '';
-
-      return `
-        <tr style="background-color: #e0e7ff;">
-          <td colspan="2" style="padding: 10px; font-weight: 700; border: 1px solid #c7d2fe;">${groupName}</td>
-        </tr>
-        ${itemsHTML}
-        <tr>
-          <td colspan="2" style="height: 8px; border: 0;"></td>
-        </tr>
-      `;
-    })
-    .join('');
+    return `
+      <tr style="background-color: #e0e7ff;">
+        <td colspan="2" style="padding: 10px; font-weight: 700; border: 1px solid #c7d2fe;">${group.title}</td>
+      </tr>
+      ${itemsHTML}
+      <tr>
+        <td colspan="2" style="height: 8px; border: 0;"></td>
+      </tr>
+    `;
+  }).join('');
 
   // Use custom email body from settings if available
-  const defaultBody = `尊敬的 <strong>${employee.name}</strong>，<br><br>您好！请查看您的工资详情。<br><br>如有任何疑问，请联系Yunzhi。<br><br>Dear <strong>${employee.name}</strong>,<br><br>Please find your salary details below.<br><br>If you have any questions, please contact Yunzhi.`;
+  const defaultBody = `尊敬的 <strong>${meta.name}</strong>，<br><br>您好！请查看您的工资详情。<br><br>如有任何疑问，请联系Yunzhi。<br><br>Dear <strong>${meta.name}</strong>,<br><br>Please find your salary details below.<br><br>If you have any questions, please contact Yunzhi.`;
 
   const emailBody = (settings.emailBody || defaultBody)
-    .replace(/{name}/g, employee.name)
+    .replace(/{name}/g, meta.name)
     .replace(/{month}/g, month)
-    .replace(/{companyName}/g, displayCompanyName)
-    .replace(/{email}/g, employee.email || 'N/A');
+    .replace(/{companyName}/g, meta.employer.zh || displayCompanyName)
+    .replace(/{email}/g, meta.email || 'N/A');
 
   return `
     <!DOCTYPE html>
@@ -415,9 +256,9 @@ function generateExpatriateEmailHTML(employee, month, companyName, settings = {}
         body { font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 700px; margin: 0 auto; padding: 20px; }
         .header { background-color: #475569; color: white; padding: 20px; text-align: center; }
-        .metadata { background-color: #f8fafc; padding: 15px; margin: 15px 0; border-radius: 8px; }
+        .metadata { background-color: #f8fafc; padding: 15px; margin: 15px 0; border-radius: 8px; font-size: 14px; }
         .content { background-color: #f9f9f9; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; font-size: 13px; }
         th { background-color: #475569; color: white; padding: 10px; text-align: left; }
         td { padding: 8px; border: 1px solid #ddd; }
         .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
@@ -430,34 +271,30 @@ function generateExpatriateEmailHTML(employee, month, companyName, settings = {}
         </div>
         <div class="content">
           <div class="metadata">
-            ${(displayCompanyName || displayCompanyNameEn) ? `
-              <div><strong>雇主名称 / Name of Employer:</strong> ${[displayCompanyName, displayCompanyNameEn].filter(Boolean).join(' / ')}</div>
-            ` : ''}
-            <div><strong>${formatBilingualLabel(EXPATRIATE_LABELS.employeeName)}:</strong> ${employee.name}</div>
-            <div><strong>Pay Period:</strong> ${payPeriod || month}</div>
+            ${displayCompanyName ? `<div><strong>雇主名称 / Employer:</strong> ${displayCompanyName}</div>` : ''}
+            <div><strong>姓名 / Name:</strong> ${meta.name}</div>
+            <div><strong>工资周期 / Pay Period:</strong> ${meta.payPeriod}</div>
+            ${meta.paymentDate ? `<div><strong>付款日期 / Date of Payment:</strong> ${meta.paymentDate}</div>` : ''}
           </div>
-
-          ${paymentDate ? `<p><strong>Date of Payment:</strong> ${paymentDate}</p>` : ''}
 
           <p>${emailBody}</p>
 
           <table>
             <thead>
               <tr>
-                <th>${formatBilingualLabel(EXPATRIATE_LABELS.item)}</th>
-                <th style="text-align: right;">${formatBilingualLabel(EXPATRIATE_LABELS.amount)}</th>
+                <th>项目 / Item</th>
+                <th style="text-align: right;">金额 / Amount</th>
               </tr>
             </thead>
             <tbody>
-              ${groupRows}
+              ${rowsHTML}
             </tbody>
           </table>
 
-          ${employee.remarks ? `<p style="background-color: #fef3c7; padding: 10px; border-left: 4px solid #f59e0b;"><strong>备注 Remarks:</strong> ${employee.remarks}</p>` : ''}
+          ${meta.remarks ? `<p style="background-color: #fef3c7; padding: 10px; border-left: 4px solid #f59e0b; font-size: 13px;"><strong>备注 / Remarks:</strong> ${meta.remarks}</p>` : ''}
         </div>
         <div class="footer">
           <p>${settings.pdfFooter || '此邮件由系统自动发送，请勿回复。'}<br>${settings.pdfFooter ? '' : 'This email is auto-generated, please do not reply.'}</p>
-          <p>如果有问题请联系Yunzhi</p>
         </div>
       </div>
     </body>
@@ -471,3 +308,4 @@ function generateExpatriateEmailHTML(employee, month, companyName, settings = {}
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+

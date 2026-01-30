@@ -9,6 +9,14 @@ export const EMPLOYEE_TYPE_KEYWORDS = {
   LOCAL: ['基本工资(RMB)', '补贴(RMB)', '扣除(RMB)']
 };
 
+// Fields that should not display a unit
+export const UNITLESS_FIELDS = [
+  '档案工资-岗级',
+  '档案工资-薪级',
+  '地区系数',
+  '驻外岗级'
+];
+
 // Bilingual labels for expatriate employees
 export const EXPATRIATE_LABELS = {
   // Metadata
@@ -32,7 +40,7 @@ export const EXPATRIATE_LABELS = {
   seaSubsidy: { en: 'Sea Inspection Subsidy', zh: '出海补贴' },
   driving: { en: 'Driving Allowance', zh: '行车/驾车补贴' },
   fieldWork: { en: 'Field Work', zh: '外勤' },
-  overtime: { en: 'Overtime (hours × $5)', zh: '加班 (小时 × $5)' },
+  overtime: { en: 'Overtime', zh: '加班 (小时 × $5)' },
   others: { en: 'Others', zh: '其他' },
 
   // Bonus items
@@ -68,8 +76,31 @@ export const LOCAL_LABELS = {
   employeeNumber: { en: 'Employee No.', zh: '序号' },
   month: { en: 'Month', zh: '月份' },
 
-  // Common labels
+  // Groups
   item: { en: 'Item', zh: '项目' },
+  fixedSalary: { en: 'Fixed Salary', zh: '固定工资类' },
+  bonuses: { en: 'Bonuses & Others', zh: '浮动工资类' },
+  cpfDeductions: { en: 'CPF Deductions', zh: '个人CPF扣除' },
+  otherDeductions: { en: 'Other Deductions', zh: '其他扣发' },
+
+  // Items
+  basicSalary: { en: 'Basic Salary', zh: '合同工资' },
+  subsidy: { en: 'Subsidy', zh: '补贴' },
+  driving: { en: 'Driving Allowance', zh: '驾车补贴' },
+  fieldWork: { en: 'Field Work Allowance', zh: '外勤补贴' },
+  overtime: { en: 'Overtime', zh: '加班费' },
+  subtotal: { en: 'Subtotal', zh: '小计' },
+
+  yearEndBonus: { en: 'Year-end Bonus', zh: '年终奖' },
+  holidayPay: { en: 'Holiday Pay', zh: '假期工资' },
+  reward: { en: 'Reward', zh: '奖励金' },
+  variableOthers: { en: 'Variable Others', zh: '浮动其他' },
+
+  // Totals
+  grossSalary: { en: 'Gross Salary', zh: '应发工资合计' },
+  totalDeductions: { en: 'Total Deductions', zh: '扣发合计' },
+  netSalary: { en: 'Net Salary', zh: '实发工资' },
+
   amount: { en: 'Amount', zh: '金额' },
   total: { en: 'Total', zh: '总计' },
   remarks: { en: 'Remarks', zh: '备注' },

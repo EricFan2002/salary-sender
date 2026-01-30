@@ -1,0 +1,21 @@
+[Unit]
+Description=Payslip Backend API Server
+Documentation=https://nodejs.org/
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/salary-slip-app/frontend/src/backend
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=PATH=/root/.nvm/versions/node/v24.13.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/root/.nvm/versions/node/v24.13.0/bin/node server.js
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=payslip-backend
+
+[Install]
+WantedBy=multi-user.target

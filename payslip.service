@@ -1,0 +1,21 @@
+[Unit]
+Description=Payslip Node.js Application
+Documentation=https://github.com/vitejs/vite
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/salary-slip-app/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=PATH=/root/.nvm/versions/node/v24.13.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/root/.nvm/versions/node/v24.13.0/bin/npm run preview -- --port 3000 --host 0.0.0.0
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=payslip
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sudo cp:*)",
+      "Bash(sudo systemctl daemon-reload:*)",
+      "Bash(sudo systemctl enable:*)",
+      "Bash(sudo systemctl start:*)",
+      "Bash(sudo systemctl status:*)",
+      "Bash(sudo systemctl stop:*)",
+      "Bash(sudo systemctl disable:*)",
+      "Bash(sudo rm:*)",
+      "Bash(sudo systemctl is-enabled:*)",
+      "Bash(sudo systemctl reload:*)",
+      "Bash(npm run build:*)",
+      "Bash(/root/.nvm/versions/node/v24.13.0/bin/npm run build)",
+      "Bash(export PATH=/root/.nvm/versions/node/v24.13.0/bin:$PATH)",
+      "Bash(curl:*)",
+      "Bash(sudo systemctl restart:*)",
+      "Bash(sudo journalctl:*)",
+      "Bash(systemctl restart:*)"
+    ]
+  }
+}

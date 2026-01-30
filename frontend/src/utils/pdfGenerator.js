@@ -36,8 +36,8 @@ function generateSalarySlipHTML(employee, month, companyName, paymentDate, payPe
       </tr>
     `).join('');
 
-    // If generic "Items" group, just return items
-    if (group.title && group.title.includes('Item / Item') || group.title === '项目') {
+    // If generic "Items" group or empty title (for totals), just return items
+    if (!group.title || group.title.includes('Item / Item') || group.title === '项目') {
       return itemsHTML;
     }
 

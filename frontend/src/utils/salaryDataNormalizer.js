@@ -5,7 +5,8 @@ import {
     formatCurrency,
     safeParseNumber,
     shouldDisplayValue,
-    UNITLESS_FIELDS
+    UNITLESS_FIELDS,
+    EXPATRIATE_STRUCTURE
 } from './salaryMappings.js';
 
 /**
@@ -65,60 +66,125 @@ export function normalizeSalaryData(employee, month, options = {}) {
  * Normalize Expatriate Data
  * Uses structure defined in EXPATRIATE_LABELS
  */
+/**
+ * Normalize Expatriate Data
+ * Uses structure defined in EXPATRIATE_STRUCTURE to enforce order
+ */
 function normalizeExpatriateData(employee, defaultCurrency) {
+    // const { EXPATRIATE_STRUCTURE } = require('./salaryMappings'); // Imported at top
     const breakdown = employee.breakdown || {};
-    const groups = {};
+    const groups = [];
 
-    // Helper to detect currency specific to item label
-    const detectCurrency = (label) => {
-        if (label.includes('(RMB)')) return 'RMB';
-        if (label.includes('(SGD)')) return 'SGD';
-        return defaultCurrency;
+    // Helper to find value (using variations if needed, but here we expect exact keys from parser)
+    const getValue = (key) => {
+        // Direct match first (simplest since parser uses mapping keys)
+        if (breakdown[key] !== undefined) return breakdown[key];
+        return null;
     };
 
-    const sanitizeLabel = (label) => label.replace(/\s*\((RMB|SGD)\)\s*/g, '').trim();
+    // 1. Process Defined Sections (Fixed, Subsidies, Bonuses/Others)
+    EXPATRIATE_STRUCTURE.sections.forEach(sectionDef => {
+        const groupItems = [];
 
-    // Iterate over breakdown keys
-    Object.entries(breakdown).forEach(([key, value]) => {
-        if (!shouldDisplayValue(value)) return;
-        if (['序号', '邮箱', '备注', 'EP符合性'].includes(key) || key.includes('加班小时')) return;
+        sectionDef.items.forEach(itemDef => {
+            const val = getValue(itemDef.key);
+            if (shouldDisplayValue(val)) {
+                // Determine unit
+                let unit = defaultCurrency;
+                if (itemDef.key.includes('(RMB)')) unit = 'RMB';
+                if (itemDef.key.includes('(SGD)')) unit = 'SGD';
+                if (UNITLESS_FIELDS.includes(itemDef.label)) unit = '';
 
-        // Split "Group - Item"
-        const parts = key.split(' - ');
-        const groupName = parts.length > 1 ? parts[0] : '项目';
-        const itemName = parts.length > 1 ? parts[1] : key;
-
-        if (!groups[groupName]) {
-            groups[groupName] = {
-                title: groupName === '项目' ? formatBilingualLabel(EXPATRIATE_LABELS.item) : groupName,
-                items: []
-            };
-        }
-
-        const isEmphasis = ['小计', '合计', '应发工资', '实发工资', '扣发合计'].some(k => itemName.includes(k));
-        let unit = detectCurrency(itemName);
-
-        // Check if field should be unitless
-        if (UNITLESS_FIELDS.includes(itemName)) {
-            unit = '';
-        }
-
-        // Try to find a nice bilingual label if possible, otherwise use raw
-        // For Expatriates, the excel keys are usually already human readable or mapped in parsers.
-        // The current logic in emailService just uses the key directly. We keep that for flexibility.
-
-        groups[groupName].items.push({
-            label: sanitizeLabel(itemName),
-            originalLabel: itemName,
-            value: value,
-            formattedValue: formatCurrency(value, unit),
-            unit: unit,
-            isBold: isEmphasis,
-            isHighlight: isEmphasis
+                groupItems.push({
+                    label: formatBilingualLabel(EXPATRIATE_LABELS[itemDef.label] || { en: itemDef.label, zh: itemDef.label }),
+                    originalLabel: itemDef.label,
+                    value: val,
+                    formattedValue: formatCurrency(val, unit),
+                    unit: unit,
+                    isBold: false,
+                    isHighlight: false
+                });
+            }
         });
+
+        if (groupItems.length > 0) {
+            groups.push({
+                title: formatBilingualLabel(EXPATRIATE_LABELS[sectionDef.label] || { en: sectionDef.label, zh: sectionDef.label }),
+                items: groupItems
+            });
+        }
     });
 
-    return Object.values(groups);
+    // 2. Gross Salary (Standalone)
+    const grossVal = getValue(EXPATRIATE_STRUCTURE.grossSalary.key);
+    if (shouldDisplayValue(grossVal)) {
+        groups.push({
+            title: '', // No title for standalone totals
+            items: [{
+                label: formatBilingualLabel(EXPATRIATE_LABELS.grossSalary),
+                value: grossVal,
+                formattedValue: formatCurrency(grossVal, 'SGD'),
+                unit: 'SGD',
+                isBold: true,
+                isHighlight: true
+            }]
+        });
+    }
+
+    // 3. Deductions Group
+    const deductionItems = [];
+    EXPATRIATE_STRUCTURE.deductions.forEach(dedItem => {
+        const val = getValue(dedItem.key);
+        if (shouldDisplayValue(val)) {
+            let unit = 'SGD';
+            if (dedItem.key.includes('(RMB)')) unit = 'RMB';
+
+            deductionItems.push({
+                label: formatBilingualLabel(EXPATRIATE_LABELS[dedItem.label] || { en: dedItem.label, zh: dedItem.label }),
+                value: val,
+                formattedValue: formatCurrency(val, unit),
+                unit: unit,
+                isBold: false
+            });
+        }
+    });
+
+    // Add Total Deductions if available
+    const totalDedVal = getValue(EXPATRIATE_STRUCTURE.totalDeductions.key);
+    if (shouldDisplayValue(totalDedVal)) {
+        deductionItems.push({
+            label: formatBilingualLabel(EXPATRIATE_LABELS.totalDeductions),
+            value: totalDedVal,
+            formattedValue: formatCurrency(totalDedVal, 'SGD'),
+            unit: 'SGD',
+            isBold: true
+        });
+    }
+
+    if (deductionItems.length > 0) {
+        groups.push({
+            title: formatBilingualLabel(EXPATRIATE_LABELS.deductions),
+            items: deductionItems
+        });
+    }
+
+    // 4. Net Salary (Standalone)
+    const netVal = getValue(EXPATRIATE_STRUCTURE.netSalary.key);
+    if (shouldDisplayValue(netVal)) {
+        groups.push({
+            title: '',
+            items: [{
+                label: formatBilingualLabel(EXPATRIATE_LABELS.netSalary),
+                value: netVal,
+                formattedValue: formatCurrency(netVal, 'SGD'),
+                unit: 'SGD',
+                isBold: true,
+                isHighlight: true
+            }]
+        });
+    }
+
+    return groups;
 }
 
 /**

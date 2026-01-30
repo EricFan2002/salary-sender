@@ -26,6 +26,7 @@ export const EXPATRIATE_LABELS = {
 
   // Section headers
   fixedSalary: { en: 'Fixed Salary', zh: '固定工资' },
+  subsidies: { en: 'Subsidies', zh: '补贴类' },
   bonuses: { en: 'Bonuses & Others', zh: '奖金及其他' },
   deductions: { en: 'Deductions', zh: '扣除' },
 
@@ -108,61 +109,68 @@ export const LOCAL_LABELS = {
 };
 
 // Expatriate employee structure definition
+// Expatriate employee structure definition
 export const EXPATRIATE_STRUCTURE = {
   metadata: ['employer', 'employeeName', 'payPeriod'],
 
   sections: [
     {
       id: 'fixedSalary',
-      label: 'fixedSalary',
+      label: 'fixedSalary', // "Fixed Salary"
       items: [
-        { key: '固定工资', label: 'basicSalary' },
-        { key: '岗位工资', label: 'postSalary' },
-        { key: '补贴', label: 'subsidy' },
-        { key: '午餐补贴', label: 'lunchSubsidy' },
-        { key: '交通补贴', label: 'transportSubsidy' },
-        { key: '艰苦地区', label: 'hardshipSubsidy' },
-        { key: '危险地区', label: 'dangerSubsidy' },
-        { key: '出海补贴', label: 'seaSubsidy' },
-        { key: '驾车', label: 'driving' }, // Covers 行车补贴 as well
-        { key: '外勤', label: 'fieldWork' },
-        { key: '加班', label: 'overtime', special: 'editable' },
-        { key: '其他', label: 'others' },
-        { key: '房租', label: 'rent' }
+        { key: '固定工资 (RMB)', label: 'basicSalary' },
+        { key: '岗位工资 (RMB)', label: 'postSalary' },
+        { key: '档案工资-岗级', label: 'postLevel' }, // Optional display
+        { key: '档案工资-薪级', label: 'salaryLevel' } // Optional display
+      ],
+      subtotal: false // Usually included in Gross directly or separate
+    },
+    {
+      id: 'subsidies',
+      label: 'subsidies', // "Subsidies" (New Group)
+      items: [
+        { key: '午餐补贴 (RMB)', label: 'lunchSubsidy' },
+        { key: '交通补贴 (RMB)', label: 'transportSubsidy' },
+        { key: '生活补贴-艰苦地区 (RMB)', label: 'hardshipSubsidy' },
+        { key: '生活补贴-危险地区 (RMB)', label: 'dangerSubsidy' },
+        { key: '出海补贴 (RMB)', label: 'seaSubsidy' },
+        { key: '驾车 (RMB)', label: 'driving' },
+        { key: '补贴 (RMB)', label: 'subsidy' }, // Total Subsidy if provided
+        { key: '其他 (RMB)', label: 'others' }
       ],
       subtotal: true
     },
     {
-      id: 'bonuses',
-      label: 'bonuses',
+      id: 'others',
+      label: 'bonuses', // Reusing "Bonuses & Others" label
       items: [
-        { key: '年终奖', label: 'yearEndBonus' },
-        { key: '假期工资', label: 'holidayPay' },
-        { key: '奖励金', label: 'reward' },
-        { key: '浮动其他', label: 'variableOthers' },
-        { key: '奖金预支', label: 'bonusAdvance' }
+        { key: '房租 (SGD)', label: 'rent' },
+        { key: '奖金预支 (SGD)', label: 'bonusAdvance' }
       ],
-      subtotal: true
+      subtotal: false
     }
   ],
 
+  // Defined for Calculation/Display Order in PDF
   grossSalary: {
-    label: 'grossSalary',
-    calculate: (sections) => {
-      return sections.reduce((sum, section) => sum + (section.subtotal || 0), 0);
-    }
+    key: '应发工资 (SGD)',
+    label: 'grossSalary'
   },
 
   deductions: [
-    { key: '个人CPF', label: 'cpf' },
-    { key: 'CPF', label: 'cpf' },
-    { key: '扣发RMB', label: 'deductionRMB' },
-    { key: '扣发SGD', label: 'deductionSGD' }
+    { key: '扣发RMB (RMB)', label: 'deductionRMB' },
+    { key: '扣发SGD (SGD)', label: 'deductionSGD' },
+    { key: '个人CPF', label: 'cpf' } // If exists
   ],
 
+  totalDeductions: {
+    key: '扣发合计 (SGD)',
+    label: 'totalDeductions'
+  },
+
   netSalary: {
-    label: 'netSalary',
-    calculate: (gross, totalDeductions) => gross - totalDeductions
+    key: '实发工资 (SGD)',
+    label: 'netSalary'
   }
 };
 

@@ -6,7 +6,8 @@ import {
     safeParseNumber,
     shouldDisplayValue,
     UNITLESS_FIELDS,
-    EXPATRIATE_STRUCTURE
+    EXPATRIATE_STRUCTURE,
+    LOCAL_STRUCTURE
 } from './salaryMappings.js';
 
 /**
@@ -191,82 +192,182 @@ function normalizeExpatriateData(employee, defaultCurrency) {
  * Normalize Local Data
  * Uses structure defined in LOCAL_LABELS
  */
+/**
+ * Normalize Local Data
+ * Uses structure defined in LOCAL_STRUCTURE
+ */
 function normalizeLocalData(employee, currency) {
+    // const { LOCAL_STRUCTURE, LOCAL_LABELS } = require('./salaryMappings'); // Imported at top
     const breakdown = employee.breakdown || {};
-    const groups = {};
+    const groups = [];
 
-    // Find translation helper
-    const findTranslation = (text) => {
-        for (const [key, val] of Object.entries(LOCAL_LABELS)) {
-            if (val.zh === text) return val;
-        }
+    const getValue = (key) => {
+        if (breakdown[key] !== undefined) return breakdown[key];
         return null;
     };
 
-    const formatGroupLabel = (name) => {
-        // Check known groups
-        const known = findTranslation(name);
-        if (known) return formatBilingualLabel(known);
-        return name; // Fallback
-    };
+    // 1. Process Main Sections (Fixed, Bonuses)
+    LOCAL_STRUCTURE.sections.forEach(sectionDef => {
+        const groupItems = [];
 
-    Object.entries(breakdown).forEach(([key, value]) => {
-        if (!shouldDisplayValue(value)) return;
-        if (['序号', '邮箱', '备注'].includes(key) || key.includes('加班小时')) return;
+        // Items
+        sectionDef.items.forEach(itemDef => {
+            const val = getValue(itemDef.key);
+            if (shouldDisplayValue(val)) {
+                let label = LOCAL_LABELS[itemDef.label] ? formatBilingualLabel(LOCAL_LABELS[itemDef.label]) : itemDef.key;
 
-        // Logic from helper function in emailService: "Group > Column" or "Group - Column"
-        // The emailService used `key.split(' - ')` but pdfGenerator used `key.split(' > ')` fallback.
-        // Let's standardized on what excelParser produces.
-        // excelParser produces keys based on mapping. LOCAL_MAPPING uses "Group - Item" format or just "Item".
+                // Special handling for Overtime to show hours
+                if (itemDef.key.includes('加班费')) {
+                    const hours = employee.overtimeHours || 0;
+                    const otLabel = LOCAL_LABELS.overtime;
+                    label = `${otLabel.zh} (${hours}小时) / ${otLabel.en} (${hours} hrs)`;
+                }
 
-        let groupName = '项目';
-        let itemName = key;
+                groupItems.push({
+                    label: label,
+                    originalLabel: itemDef.label,
+                    value: val,
+                    formattedValue: formatCurrency(val, currency),
+                    unit: currency,
+                    isBold: false,
+                    isHighlight: false
+                });
+            }
+        });
 
-        if (key.includes(' - ')) {
-            const parts = key.split(' - ');
-            groupName = parts[0];
-            itemName = parts[1];
-        }
-
-        if (!groups[groupName]) {
-            groups[groupName] = {
-                title: formatGroupLabel(groupName),
-                originalTitle: groupName,
-                items: []
-            };
-        }
-
-        const isEmphasis = ['小计', '合计', '应发工资', '实发工资', '扣发合计', '应发工资合计', '其他扣发'].some(k => itemName.includes(k));
-
-        // Formatting Label
-        let label = itemName;
-        const knownItem = findTranslation(itemName);
-        if (knownItem) {
-            label = isEmphasis ? formatBilingualLabel(knownItem) : `${itemName} / ${knownItem.en}`;
-        } else {
-            // Try specific handling for Overtime
-            if (itemName.includes('加班费')) {
-                const overtimeLabel = LOCAL_LABELS.overtime;
-                const hours = employee.overtimeHours || 0;
-                label = `${itemName} (${hours}小时) / ${overtimeLabel.en} (${hours} hrs)`;
+        // Subtotal (if exists and has value)
+        if (sectionDef.subtotal) {
+            const val = getValue(sectionDef.subtotal.key);
+            if (shouldDisplayValue(val)) {
+                groupItems.push({
+                    label: formatBilingualLabel(LOCAL_LABELS.subtotal),
+                    value: val,
+                    formattedValue: formatCurrency(val, currency),
+                    unit: currency,
+                    isBold: true,
+                    isHighlight: true
+                });
             }
         }
 
-        groups[groupName].items.push({
-            label: label,
-            originalLabel: itemName,
-            value: value,
-            formattedValue: formatCurrency(value, currency),
-            unit: currency,
-            isBold: isEmphasis,
-            isHighlight: isEmphasis
-        });
+        if (groupItems.length > 0) {
+            groups.push({
+                title: formatBilingualLabel(LOCAL_LABELS[sectionDef.label]),
+                items: groupItems
+            });
+        }
     });
 
-    // Sort groups if needed? 
-    // Local mapping order: Fixed, Bonus, Deductions.
-    // The object iteration order usually follows insertion order which follows mapping order. 
-    // So we should be good relying on object insertion order.
+    // 2. Gross Salary
+    const grossVal = getValue(LOCAL_STRUCTURE.grossSalary.key);
+    if (shouldDisplayValue(grossVal)) {
+        groups.push({
+            title: '',
+            items: [{
+                label: formatBilingualLabel(LOCAL_LABELS.grossSalary),
+                value: grossVal,
+                formattedValue: formatCurrency(grossVal, currency),
+                unit: currency,
+                isBold: true,
+                isHighlight: true
+            }]
+        });
+    }
 
-    return Object.values(groups);
+    // 3. CPF Deductions (Inserted Here)
+    const cpfItems = [];
+    LOCAL_STRUCTURE.cpf.items.forEach(itemDef => {
+        const val = getValue(itemDef.key);
+        // Special case: CPF items might be implicitly 0 or hidden? 
+        // User screenshot shows "个人CPF扣除" group.
+        if (shouldDisplayValue(val)) {
+            // For CPF items, labels might need mapping
+            // LOCAL_LABELS doesn't have specific keys for "fixedSalary" inside CPF context, 
+            // but we can reuse or just use specific logic.
+            // LOCAL_LABELS has: basicSalary (Fixed), bonuses (Bonus)...
+            // Actually LOCAL_LABELS has 'fixedSalary' as a Group Name.
+
+            // Check if we have specific labels for CPF sub-items or just use generic
+            // The excel keys are "个人CPF扣除 - 固定工资"
+            let labelKey = itemDef.label; // 'fixedSalary', 'bonuses', 'subtotal'
+            let displayLabel = '';
+
+            if (labelKey === 'fixedSalary') displayLabel = '固定工资 / Fixed Salary'; // Ad-hoc or reuse
+            else if (labelKey === 'bonuses') displayLabel = '浮动工资 / Bonus';
+            else if (labelKey === 'subtotal') displayLabel = '合计 / Total';
+            else displayLabel = itemDef.key;
+
+            cpfItems.push({
+                label: displayLabel,
+                value: val,
+                formattedValue: formatCurrency(val, currency),
+                unit: currency,
+                isBold: labelKey === 'subtotal',
+                isHighlight: labelKey === 'subtotal'
+            });
+        }
+    });
+
+    if (cpfItems.length > 0) {
+        groups.push({
+            title: formatBilingualLabel(LOCAL_LABELS.cpfDeductions),
+            items: cpfItems
+        });
+    }
+
+    // 4. Other Deductions & Total Deductions
+    const deductionItems = [];
+
+    // Other Deductions
+    LOCAL_STRUCTURE.deductions.forEach(dedItem => {
+        const val = getValue(dedItem.key);
+        if (shouldDisplayValue(val)) {
+            deductionItems.push({
+                label: formatBilingualLabel(LOCAL_LABELS[dedItem.label]),
+                value: val,
+                formattedValue: formatCurrency(val, currency),
+                unit: currency,
+                isBold: false
+            });
+        }
+    });
+
+    // Total Deductions
+    const totalDedVal = getValue(LOCAL_STRUCTURE.totalDeductions.key);
+    if (shouldDisplayValue(totalDedVal)) {
+        deductionItems.push({
+            label: formatBilingualLabel(LOCAL_LABELS.totalDeductions),
+            value: totalDedVal,
+            formattedValue: formatCurrency(totalDedVal, currency),
+            unit: currency,
+            isBold: true
+        });
+    }
+
+    if (deductionItems.length > 0) {
+        groups.push({
+            title: '', // Deduction items often just listed? Or define a title? 
+            // In screenshot, "其他扣发" is just a line item. 
+            // "扣发合计" is a line item.
+            items: deductionItems
+        });
+    }
+
+    // 5. Net Salary
+    const netVal = getValue(LOCAL_STRUCTURE.netSalary.key);
+    if (shouldDisplayValue(netVal)) {
+        groups.push({
+            title: '',
+            items: [{
+                label: formatBilingualLabel(LOCAL_LABELS.netSalary),
+                value: netVal,
+                formattedValue: formatCurrency(netVal, currency),
+                unit: currency,
+                isBold: true,
+                isHighlight: true
+            }]
+        });
+    }
+
+    return groups;
 }

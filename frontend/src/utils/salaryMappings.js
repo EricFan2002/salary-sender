@@ -216,6 +216,65 @@ export const COLUMN_VARIATIONS = {
   netSalary: ['实发工资', 'Net Salary', 'Net Pay', 'Take Home']
 };
 
+export const LOCAL_STRUCTURE = {
+  metadata: ['employeeName', 'employeeNumber', 'month'],
+
+  sections: [
+    {
+      id: 'fixedSalary',
+      label: 'fixedSalary',
+      items: [
+        { key: '固定工资类 - 合同工资', label: 'basicSalary' },
+        { key: '固定工资类 - 补贴', label: 'subsidy' },
+        { key: '固定工资类 - 驾车补贴', label: 'driving' },
+        { key: '固定工资类 - 外勤补贴', label: 'fieldWork' },
+        { key: '固定工资类 - 加班费', label: 'overtime', special: 'editable' }
+      ],
+      subtotal: { key: '固定工资类 - 小计', label: 'subtotal' }
+    },
+    {
+      id: 'bonuses',
+      label: 'bonuses',
+      items: [
+        { key: '浮动工资类 - 年终奖', label: 'yearEndBonus' },
+        { key: '浮动工资类 - 假期工资', label: 'holidayPay' },
+        { key: '浮动工资类 - 奖励金', label: 'reward' },
+        { key: '浮动工资类 - 浮动其他', label: 'variableOthers' }
+      ],
+      subtotal: { key: '浮动工资类 - 小计', label: 'subtotal' }
+    }
+  ],
+
+  grossSalary: {
+    key: '应发工资合计',
+    label: 'grossSalary'
+  },
+
+  cpf: {
+    id: 'cpfDeductions',
+    label: 'cpfDeductions',
+    items: [
+      { key: '个人CPF扣除 - 固定工资', label: 'fixedSalary' },
+      { key: '个人CPF扣除 - 浮动工资', label: 'bonuses' },
+      { key: '个人CPF扣除 - 合计', label: 'subtotal' }
+    ]
+  },
+
+  deductions: [
+    { key: '其他扣发', label: 'otherDeductions' }
+  ],
+
+  totalDeductions: {
+    key: '扣发合计',
+    label: 'totalDeductions'
+  },
+
+  netSalary: {
+    key: '实发工资',
+    label: 'netSalary'
+  }
+};
+
 /**
  * Detect employee type from breakdown keys
  */

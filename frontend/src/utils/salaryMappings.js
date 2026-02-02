@@ -11,10 +11,9 @@ export const EMPLOYEE_TYPE_KEYWORDS = {
 
 // Fields that should not display a unit
 export const UNITLESS_FIELDS = [
-  '档案工资-岗级',
-  '档案工资-薪级',
-  '地区系数',
-  '驻外岗级'
+  'postLevel',
+  'salaryLevel',
+  'regionalCoefficient'
 ];
 
 // Bilingual labels for expatriate employees
@@ -33,6 +32,9 @@ export const EXPATRIATE_LABELS = {
   // Fixed salary items
   basicSalary: { en: 'Basic Salary', zh: '固定工资' },
   postSalary: { en: 'Post Salary', zh: '岗位工资' },
+  postLevel: { en: 'Post Level', zh: '岗级' },
+  salaryLevel: { en: 'Salary Level', zh: '薪级' },
+  regionalCoefficient: { en: 'Regional Coefficient', zh: '地区系数' },
   subsidy: { en: 'Subsidy', zh: '补贴' },
   lunchSubsidy: { en: 'Lunch Subsidy', zh: '午餐补贴' },
   transportSubsidy: { en: 'Transport Subsidy', zh: '交通补贴' },
@@ -121,7 +123,8 @@ export const EXPATRIATE_STRUCTURE = {
         { key: '固定工资 (RMB)', label: 'basicSalary' },
         { key: '岗位工资 (RMB)', label: 'postSalary' },
         { key: '档案工资-岗级', label: 'postLevel' }, // Optional display
-        { key: '档案工资-薪级', label: 'salaryLevel' } // Optional display
+        { key: '档案工资-薪级', label: 'salaryLevel' }, // Optional display
+        { key: '地区系数', label: 'regionalCoefficient' }
       ],
       subtotal: false // Usually included in Gross directly or separate
     },
